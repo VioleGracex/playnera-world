@@ -1,53 +1,45 @@
 using UnityEngine;
-using System.Collections;
 
 public class CameraController : MonoBehaviour
 {
-    public Transform background;
+    public Transform background; // Assign the background GameObject in Unity
     private Camera cam;
     public Vector2 minBounds, maxBounds;
+    private Vector3 lastTouchPosition;
     private bool isDragging = false;
     private bool isDraggingSprite = false;
-    private Draggable currentDraggable;
-    private Vector3 lastTouchPosition;
-    [SerializeField] private float edgeScrollSpeed = 1f; 
-    [SerializeField] private float edgeThreshold = 50f; // Edge threshold in pixels
-    private Coroutine edgeScrollCoroutine;
+    [SerializeField] private float edgeScrollSpeed = 5f; // Speed of camera scrolling when dragging near the edge
+    [SerializeField] private float edgeThreshold = 50f; // Threshold in pixels for edge scrolling
 
     void Start()
     {
-        cam = Camera.main;
+        cam = Camera.main; // Directly get the Main Camera
         AdjustCameraSize();
         CalculateBounds();
     }
 
     void Update()
     {
-        if (!isDraggingSprite && Input.touchCount == 1)
+        if (Input.touchCount == 1) // Only one finger touch
         {
             Touch touch = Input.GetTouch(0);
             Vector3 touchPosition = cam.ScreenToWorldPoint(touch.position);
-            touchPosition.z = 0;
 
             if (touch.phase == TouchPhase.Began)
             {
                 lastTouchPosition = touchPosition;
                 isDragging = true;
             }
-            else if (touch.phase == TouchPhase.Moved && isDragging)
+            else if (touch.phase == TouchPhase.Moved && isDragging && !isDraggingSprite)
             {
-                MoveCamera(lastTouchPosition - touchPosition);
-                lastTouchPosition = touchPosition; // Update lastTouchPosition
+                Vector3 difference = lastTouchPosition - touchPosition;
+                MoveCamera(difference);
+                lastTouchPosition = touchPosition;
             }
             else if (touch.phase == TouchPhase.Ended)
             {
                 isDragging = false;
             }
-        }
-
-        if (isDraggingSprite && currentDraggable != null)
-        {
-            HandleEdgeScrolling(currentDraggable.transform.position);
         }
     }
 
@@ -59,7 +51,7 @@ public class CameraController : MonoBehaviour
         if (bgRenderer == null) return;
 
         float bgHeight = bgRenderer.bounds.size.y;
-        cam.orthographicSize = bgHeight / 2f;
+        cam.orthographicSize = bgHeight / 2f; // Adjust camera size based on background height
     }
 
     void CalculateBounds()
@@ -111,39 +103,16 @@ public class CameraController : MonoBehaviour
             cameraMovement.y = edgeScrollSpeed * Time.deltaTime;
         }
 
-        if (cameraMovement != Vector3.zero)
-        {
-            MoveCamera(cameraMovement);
-        }
+        MoveCamera(cameraMovement);
     }
 
-    public void StartSpriteDrag(Draggable draggable)
+    public void StartSpriteDrag()
     {
         isDraggingSprite = true;
-        currentDraggable = draggable;
     }
 
     public void EndSpriteDrag()
     {
         isDraggingSprite = false;
-        currentDraggable = null;
-    }
-
-    public void CheckEdgeScrolling(Vector3 draggablePosition)
-    {
-        if (edgeScrollCoroutine == null)
-        {
-            edgeScrollCoroutine = StartCoroutine(EdgeScroll(draggablePosition));
-        }
-    }
-
-    private IEnumerator EdgeScroll(Vector3 draggablePosition)
-    {
-        while (isDraggingSprite)
-        {
-            HandleEdgeScrolling(draggablePosition);
-            yield return null;
-        }
-        edgeScrollCoroutine = null;
     }
 }
