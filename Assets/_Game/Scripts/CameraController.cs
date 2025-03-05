@@ -7,6 +7,7 @@ public class CameraController : MonoBehaviour
     private Vector2 minBounds, maxBounds;
     private Vector3 lastTouchPosition;
     private bool isDragging = false;
+    private bool isDraggingSprite = false;
 
     void Start()
     {
@@ -20,17 +21,18 @@ public class CameraController : MonoBehaviour
         if (Input.touchCount == 1) // Only one finger touch
         {
             Touch touch = Input.GetTouch(0);
+            Vector3 touchPosition = cam.ScreenToWorldPoint(touch.position);
 
             if (touch.phase == TouchPhase.Began)
             {
-                lastTouchPosition = cam.ScreenToWorldPoint(touch.position);
+                lastTouchPosition = touchPosition;
                 isDragging = true;
             }
-            else if (touch.phase == TouchPhase.Moved && isDragging)
+            else if (touch.phase == TouchPhase.Moved && isDragging && !isDraggingSprite)
             {
-                Vector3 difference = lastTouchPosition - cam.ScreenToWorldPoint(touch.position);
+                Vector3 difference = lastTouchPosition - touchPosition;
                 MoveCamera(difference);
-                lastTouchPosition = cam.ScreenToWorldPoint(touch.position);
+                lastTouchPosition = touchPosition;
             }
             else if (touch.phase == TouchPhase.Ended)
             {
@@ -74,5 +76,15 @@ public class CameraController : MonoBehaviour
         newPos.x = Mathf.Clamp(newPos.x, minBounds.x, maxBounds.x);
         newPos.y = Mathf.Clamp(newPos.y, minBounds.y, maxBounds.y);
         cam.transform.position = newPos;
+    }
+
+    public void StartSpriteDrag()
+    {
+        isDraggingSprite = true;
+    }
+
+    public void EndSpriteDrag()
+    {
+        isDraggingSprite = false;
     }
 }
