@@ -1,12 +1,17 @@
 using UnityEngine;
 
-public class Draggable : MonoBehaviour
+public abstract class Draggable : MonoBehaviour
 {
     public Vector3 InitialScale { get; private set; }
+    public abstract DraggableType Type { get; }
+
+    protected SpriteRenderer spriteRenderer;
 
     private void Start()
     {
         InitialScale = transform.localScale; // Save the initial scale
+        spriteRenderer = GetComponent<SpriteRenderer>();
+        AdjustOrderInLayer();
     }
 
     public void AdjustOrderInLayer()
@@ -17,4 +22,12 @@ public class Draggable : MonoBehaviour
             renderer.sortingOrder = Mathf.RoundToInt(-transform.position.y * 100);
         }
     }
+
+}
+
+
+public enum DraggableType
+{
+    Item,
+    Person
 }

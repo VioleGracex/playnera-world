@@ -5,17 +5,18 @@ TagManager:
   serializedVersion: 3
   tags:
   - PlacementZone
+  - SitFriendly
   layers:
   - Default
   - TransparentFX
   - Ignore Raycast
-  - 
+  - Floor
   - Water
   - UI
   - Draggable
-  - 
-  - 
-  - 
+  - ItemFriendly
+  - PersonFriendly
+  - SitFriendly
   - 
   - 
   - 
