@@ -11,6 +11,9 @@ public class DraggablePerson : Draggable
     [SerializeField]
     private Vector3 sittingOffset = new Vector3(0f, -0.5f, 0f); // Offset to adjust the person's position when sitting
 
+    [SerializeField]
+    private Vector3 sleepingOffset = new Vector3(0f, -0.7f, 0f); // Offset to adjust the person's position when sleeping
+
     private Dictionary<string, Sprite> poseSprites;
 
     private void Awake()
@@ -28,10 +31,11 @@ public class DraggablePerson : Draggable
         }
     }
 
-    public void ChangePose(string pose)
+    public void ChangePose(string layerName)
     {
         if (spriteRenderer != null)
         {
+            string pose = GetPoseFromLayer(layerName);
             if (poseSprites.TryGetValue(pose, out Sprite newSprite) && newSprite != null)
             {
                 spriteRenderer.sprite = newSprite;
@@ -41,6 +45,21 @@ public class DraggablePerson : Draggable
                 // Default to standing sprite if the specified pose does not exist or is null
                 spriteRenderer.sprite = poseSprites["standing"];
             }
+
+            // Adjust position based on pose
+            AdjustPositionBasedOnPose(pose);
+        }
+    }
+
+    private void AdjustPositionBasedOnPose(string pose)
+    {
+        if (pose == "sitting")
+        {
+            transform.position += sittingOffset;
+        }
+        else if (pose == "sleeping")
+        {
+            transform.position += sleepingOffset;
         }
     }
 
@@ -50,14 +69,8 @@ public class DraggablePerson : Draggable
 
         if (collider != null)
         {
-            string pose = GetPoseFromLayer(collider.gameObject.layer);
-            ChangePose(pose);
-
-            // Adjust position if sitting
-            if (pose == "sitting")
-            {
-                transform.position += sittingOffset;
-            }
+            string layerName = LayerMask.LayerToName(collider.gameObject.layer);
+            ChangePose(layerName);
 
             // Set sorting order 1 above the collider object
             SpriteRenderer colliderSpriteRenderer = collider.GetComponent<SpriteRenderer>();
@@ -73,12 +86,14 @@ public class DraggablePerson : Draggable
         }
     }
 
-    private string GetPoseFromLayer(int layer)
+    private string GetPoseFromLayer(string layerName)
     {
-        switch (layer)
+        switch (layerName)
         {
-            case int l when l == LayerMask.NameToLayer("SitFriendly"):
+            case "SitFriendly":
                 return "sitting";
+            case "SleepFriendly":
+                return "sleeping";
             // Add more cases for additional poses
             default:
                 return "standing";

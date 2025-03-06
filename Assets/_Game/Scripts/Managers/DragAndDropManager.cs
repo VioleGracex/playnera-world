@@ -25,9 +25,10 @@ public class DragAndDropManager : MonoBehaviour
     private Dictionary<string, int> layerPriority = new Dictionary<string, int>
     {
         { "SitFriendly", 1 },
-        { "PersonFriendly", 2 },
-        { "ItemFriendly", 3 },
-        { "Floor", 4 }
+        { "SleepFriendly", 2 },
+        { "PersonFriendly", 3 },
+        { "ItemFriendly", 4 },
+        { "Floor", 5 }
     };
 
     private void Awake()
@@ -160,63 +161,15 @@ public class DragAndDropManager : MonoBehaviour
         {
             if (collider.OverlapPoint(currentDraggable.transform.position))
             {
+                string layerName = LayerMask.LayerToName(collider.gameObject.layer);
                 if (currentDraggable.Type == DraggableType.Person)
                 {
-                    HandlePersonPlacement(collider);
-                }
-                else
-                {
-                    HandleItemPlacement(collider);
+                    ((DraggablePerson)currentDraggable).ChangePose(layerName);
                 }
                 return true;
             }
         }
         return false;
-    }
-
-    private void HandlePersonPlacement(Collider2D collider)
-    {
-        string pose = GetPoseFromLayer(collider.gameObject.layer);
-        currentDraggable.GetComponent<DraggablePerson>().ChangePose(pose);
-
-        // Set sorting order 1 above the collider object
-        SpriteRenderer colliderSpriteRenderer = collider.GetComponent<SpriteRenderer>();
-        SpriteRenderer draggableSpriteRenderer = currentDraggable.GetComponent<SpriteRenderer>();
-        if (colliderSpriteRenderer != null && draggableSpriteRenderer != null)
-        {
-            draggableSpriteRenderer.sortingOrder = colliderSpriteRenderer.sortingOrder + 1;
-        }
-        else
-        {
-            currentDraggable.AdjustOrderInLayer();
-        }
-    }
-
-    private void HandleItemPlacement(Collider2D collider)
-    {
-        // Set sorting order 1 above the collider object
-        SpriteRenderer colliderSpriteRenderer = collider.GetComponent<SpriteRenderer>();
-        SpriteRenderer draggableSpriteRenderer = currentDraggable.GetComponent<SpriteRenderer>();
-        if (colliderSpriteRenderer != null && draggableSpriteRenderer != null)
-        {
-            draggableSpriteRenderer.sortingOrder = colliderSpriteRenderer.sortingOrder + 1;
-        }
-        else
-        {
-            currentDraggable.AdjustOrderInLayer();
-        }
-    }
-
-    private string GetPoseFromLayer(int layer)
-    {
-        switch (layer)
-        {
-            case int l when l == LayerMask.NameToLayer("SitFriendly"):
-                return "sitting";
-            // Add more cases for additional poses
-            default:
-                return "standing";
-        }
     }
 
     private void CheckHoverPose()
@@ -235,23 +188,21 @@ public class DragAndDropManager : MonoBehaviour
                 if (currentDraggable.Type == DraggableType.Person)
                 {
                     isHoveringOverPlacementZone = true;
-                    string pose = GetPoseFromLayer(collider.gameObject.layer);
-                    currentDraggable.GetComponent<DraggablePerson>().ChangePose(pose);
-                    if (pose == "sitting")
+                    string layerName = LayerMask.LayerToName(collider.gameObject.layer);
+                    ((DraggablePerson)currentDraggable).ChangePose(layerName);
+                    if (layerName == "SitFriendly" || layerName == "SleepFriendly")
                     {
-                        // Return scale to normal when hovering over a sitting place
+                        // Return scale to normal when hovering over a sit or sleep place
                         if (scaleCoroutine != null)
                             StopCoroutine(scaleCoroutine);
                         scaleCoroutine = StartCoroutine(SmoothScale(currentDraggable.transform, originalScale, scaleSpeed));
-                        currentDraggable.GetComponent<DraggablePerson>().ChangePose("sitting");
                     }
                     else
                     {
-                        // Scale bigger when hovering over a non-sitting place
+                        // Scale bigger when hovering over a non-sit or non-sleep place
                         if (scaleCoroutine != null)
                             StopCoroutine(scaleCoroutine);
                         scaleCoroutine = StartCoroutine(SmoothScale(currentDraggable.transform, targetScale, scaleSpeed));
-                        currentDraggable.GetComponent<DraggablePerson>().ChangePose("standing");
                     }
                     break;
                 }
@@ -264,7 +215,7 @@ public class DragAndDropManager : MonoBehaviour
             if (scaleCoroutine != null)
                 StopCoroutine(scaleCoroutine);
             scaleCoroutine = StartCoroutine(SmoothScale(currentDraggable.transform, targetScale, scaleSpeed));
-            currentDraggable.GetComponent<DraggablePerson>().ChangePose("standing");
+            ((DraggablePerson)currentDraggable).ChangePose("standing");
         }
     }
 

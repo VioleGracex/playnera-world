@@ -12,6 +12,7 @@ public class CameraController : MonoBehaviour
     private Vector3 lastTouchPosition;
     [SerializeField] private float edgeScrollSpeed = 1f; 
     [SerializeField] private float edgeThreshold = 50f; // Edge threshold in pixels
+    [SerializeField] private float minSwipeDistance = 0.5f; // Minimum swipe distance to move the camera
     private Coroutine edgeScrollCoroutine;
 
     void Start()
@@ -37,8 +38,11 @@ public class CameraController : MonoBehaviour
             else if (touch.phase == TouchPhase.Moved && isDragging)
             {
                 Vector3 difference = lastTouchPosition - touchPosition;
-                MoveCamera(difference);
-                lastTouchPosition = touchPosition; // Update lastTouchPosition
+                if (difference.magnitude >= minSwipeDistance)
+                {
+                    MoveCamera(difference);
+                    lastTouchPosition = touchPosition; // Update lastTouchPosition
+                }
             }
             else if (touch.phase == TouchPhase.Ended)
             {
