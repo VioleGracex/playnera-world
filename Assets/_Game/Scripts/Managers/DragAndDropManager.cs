@@ -16,14 +16,11 @@ public class DragAndDropManager : MonoBehaviour
     private Vector3 targetScale;
     private Vector3 originalScale;
     [SerializeField] private float scaleSpeed = 8f;
-    [SerializeField] private float fallSpeed = 5f; // Initial speed at which the object falls
-    [SerializeField] private float fallAcceleration = 2f; // Acceleration of the fall
     [SerializeField] private LayerMask itemFriendlyLayer; // Layer mask for item-friendly places
     [SerializeField] private LayerMask personFriendlyLayer; // Layer mask for person-friendly places
     [SerializeField] private LayerMask draggableLayer;
-    private Coroutine scaleCoroutine;
-    private Coroutine fallCoroutine;
     private int originalSortingOrder;
+    private Coroutine scaleCoroutine;
 
     private Dictionary<string, int> layerPriority = new Dictionary<string, int>
     {
@@ -77,7 +74,7 @@ public class DragAndDropManager : MonoBehaviour
                 currentDraggable.transform.position = newPosition;
 
                 // Inform camera controller to check position
-                camController.CheckEdgeScrolling(currentDraggable.transform.position);
+                camController.HandleEdgeScrolling(currentDraggable.transform.position);
 
                 // Check if hovering over a collider that the draggable can interact with
                 if (currentDraggable.Type == DraggableType.Person)
@@ -107,6 +104,8 @@ public class DragAndDropManager : MonoBehaviour
         targetScale = originalScale * 1.2f;
         offset = draggable.transform.position - touchPosition;
 
+        draggable.StartDragging();
+
         // Save the original sorting order and set a high sorting order for dragging
         SpriteRenderer spriteRenderer = draggable.GetComponent<SpriteRenderer>();
         if (spriteRenderer != null)
@@ -120,13 +119,6 @@ public class DragAndDropManager : MonoBehaviour
         // Stop existing coroutine before starting a new one
         if (scaleCoroutine != null)
             StopCoroutine(scaleCoroutine);
-
-        // Stop the fall coroutine if it's running
-        if (fallCoroutine != null)
-        {
-            StopCoroutine(fallCoroutine);
-            fallCoroutine = null;
-        }
 
         scaleCoroutine = StartCoroutine(SmoothScale(draggable.transform, targetScale, scaleSpeed));
     }
@@ -143,24 +135,31 @@ public class DragAndDropManager : MonoBehaviour
             spriteRenderer.sortingOrder = Mathf.RoundToInt(-currentDraggable.transform.position.y * 100);
         }
 
-        CheckPlacement();
+        bool validPlacement = CheckPlacement();
+        currentDraggable.StopDragging(validPlacement);
+
+        // Stop existing coroutine before starting a new one
+        if (scaleCoroutine != null)
+            StopCoroutine(scaleCoroutine);
+
+        scaleCoroutine = StartCoroutine(SmoothScale(currentDraggable.transform, originalScale, scaleSpeed));
+        currentDraggable = null;
     }
 
-    private void CheckPlacement()
+    private bool CheckPlacement()
     {
         LayerMask targetLayerMask = currentDraggable.Type == DraggableType.Person ? personFriendlyLayer : itemFriendlyLayer;
-        Collider2D[] colliders = Physics2D.OverlapPointAll(currentDraggable.transform.position, targetLayerMask);
+        Vector2 overlapPosition = (Vector2)currentDraggable.transform.position + Vector2.Scale(currentDraggable.OverlapOffset, currentDraggable.transform.localScale);
+        Vector2 overlapSize = Vector2.Scale(currentDraggable.OverlapSize, currentDraggable.transform.localScale);
+        Collider2D[] colliders = Physics2D.OverlapBoxAll(overlapPosition, overlapSize, 0f, targetLayerMask);
 
         // Sort colliders by their layer priority
         var sortedColliders = colliders.OrderBy(c => layerPriority[LayerMask.LayerToName(c.gameObject.layer)]).ToArray();
 
-        bool validPlacement = false;
-
         foreach (var collider in sortedColliders)
         {
-            if (collider.CompareTag("PlacementZone") && collider.OverlapPoint(currentDraggable.transform.position))
+            if (collider.OverlapPoint(currentDraggable.transform.position))
             {
-                validPlacement = true;
                 if (currentDraggable.Type == DraggableType.Person)
                 {
                     HandlePersonPlacement(collider);
@@ -168,27 +167,11 @@ public class DragAndDropManager : MonoBehaviour
                 else
                 {
                     HandleItemPlacement(collider);
-                    //currentDraggable.AdjustOrderInLayer();
                 }
-                break;
+                return true;
             }
         }
-
-        if (!validPlacement)
-        {
-            if (fallCoroutine != null)
-                StopCoroutine(fallCoroutine);
-            fallCoroutine = StartCoroutine(FallToValidPlacement(currentDraggable));
-        }
-        else
-        {
-            // Stop existing coroutine before starting a new one
-            if (scaleCoroutine != null)
-                StopCoroutine(scaleCoroutine);
-
-            scaleCoroutine = StartCoroutine(SmoothScale(currentDraggable.transform, originalScale, scaleSpeed));
-            currentDraggable = null;
-        }
+        return false;
     }
 
     private void HandlePersonPlacement(Collider2D collider)
@@ -216,7 +199,6 @@ public class DragAndDropManager : MonoBehaviour
         SpriteRenderer draggableSpriteRenderer = currentDraggable.GetComponent<SpriteRenderer>();
         if (colliderSpriteRenderer != null && draggableSpriteRenderer != null)
         {
-            Debug.Log("sort order " +colliderSpriteRenderer.sortingOrder);
             draggableSpriteRenderer.sortingOrder = colliderSpriteRenderer.sortingOrder + 1;
         }
         else
@@ -240,7 +222,9 @@ public class DragAndDropManager : MonoBehaviour
     private void CheckHoverPose()
     {
         LayerMask targetLayerMask = currentDraggable.Type == DraggableType.Person ? personFriendlyLayer : itemFriendlyLayer;
-        Collider2D[] colliders = Physics2D.OverlapPointAll(currentDraggable.transform.position, targetLayerMask);
+        Vector2 overlapPosition = (Vector2)currentDraggable.transform.position + Vector2.Scale(currentDraggable.OverlapOffset, currentDraggable.transform.localScale);
+        Vector2 overlapSize = Vector2.Scale(currentDraggable.OverlapSize, currentDraggable.transform.localScale);
+        Collider2D[] colliders = Physics2D.OverlapBoxAll(overlapPosition, overlapSize, 0f, targetLayerMask);
 
         bool isHoveringOverPlacementZone = false;
 
@@ -284,65 +268,6 @@ public class DragAndDropManager : MonoBehaviour
         }
     }
 
-    private IEnumerator FallToValidPlacement(Draggable draggable)
-    {
-        float currentFallSpeed = fallSpeed; // Initialize fall speed
-
-        while (true)
-        {
-            // Increase fall speed over time to simulate acceleration
-            currentFallSpeed += fallAcceleration * Time.deltaTime;
-            draggable.transform.position += Vector3.down * currentFallSpeed * Time.deltaTime;
-
-            LayerMask targetLayerMask = draggable.Type == DraggableType.Person ? personFriendlyLayer : itemFriendlyLayer;
-            Collider2D[] colliders = Physics2D.OverlapPointAll(draggable.transform.position, targetLayerMask);
-
-            // Sort colliders by their layer priority
-            var sortedColliders = colliders.OrderBy(c => layerPriority[LayerMask.LayerToName(c.gameObject.layer)]).ToArray();
-
-            foreach (var collider in sortedColliders)
-            {
-                if (collider.OverlapPoint(draggable.transform.position))
-                {
-                    if (draggable.Type == DraggableType.Person)
-                    {
-                        HandlePersonPlacement(collider);
-                    }
-                    else
-                    {
-                        HandleItemPlacement(collider);
-                        //currentDraggable.AdjustOrderInLayer();
-                    }
-
-                    // Stop falling when a valid placement is found
-                    if (scaleCoroutine != null)
-                        StopCoroutine(scaleCoroutine);
-
-                    scaleCoroutine = StartCoroutine(SmoothScale(draggable.transform, originalScale, scaleSpeed));
-                    currentDraggable = null;
-                    yield break;
-                }
-            }
-
-            // Check if the draggable has fallen out of camera bounds
-            Vector3 screenPosition = cam.WorldToScreenPoint(draggable.transform.position);
-            if (screenPosition.y < 0)
-            {
-                draggable.transform.position = originalPosition;
-
-                // Stop existing coroutine before starting a new one
-                if (scaleCoroutine != null)
-                    StopCoroutine(scaleCoroutine);
-
-                scaleCoroutine = StartCoroutine(SmoothScale(draggable.transform, originalScale, scaleSpeed));
-                currentDraggable = null;
-                yield break;
-            }
-
-            yield return null;
-        }
-    }
-
     private IEnumerator SmoothScale(Transform target, Vector3 targetScale, float speed)
     {
         while (!Mathf.Approximately(target.localScale.x, targetScale.x) ||
@@ -352,5 +277,17 @@ public class DragAndDropManager : MonoBehaviour
             yield return null;
         }
         target.localScale = targetScale;
+    }
+
+    private void OnDrawGizmos()
+    {
+        // Draw the overlap area for the currently grabbed item
+        if (currentDraggable != null)
+        {
+            Gizmos.color = Color.green;
+            Vector2 position = (Vector2)currentDraggable.transform.position + Vector2.Scale(currentDraggable.OverlapOffset, currentDraggable.transform.localScale);
+            Vector2 size = Vector2.Scale(currentDraggable.OverlapSize, currentDraggable.transform.localScale);
+            Gizmos.DrawWireCube(position, size);
+        }
     }
 }

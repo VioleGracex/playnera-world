@@ -36,7 +36,8 @@ public class CameraController : MonoBehaviour
             }
             else if (touch.phase == TouchPhase.Moved && isDragging)
             {
-                MoveCamera(lastTouchPosition - touchPosition);
+                Vector3 difference = lastTouchPosition - touchPosition;
+                MoveCamera(difference);
                 lastTouchPosition = touchPosition; // Update lastTouchPosition
             }
             else if (touch.phase == TouchPhase.Ended)
@@ -121,29 +122,29 @@ public class CameraController : MonoBehaviour
     {
         isDraggingSprite = true;
         currentDraggable = draggable;
+        if (edgeScrollCoroutine == null)
+        {
+            edgeScrollCoroutine = StartCoroutine(EdgeScroll());
+        }
     }
 
     public void EndSpriteDrag()
     {
         isDraggingSprite = false;
         currentDraggable = null;
-    }
-
-    public void CheckEdgeScrolling(Vector3 draggablePosition)
-    {
-        if (edgeScrollCoroutine == null)
+        if (edgeScrollCoroutine != null)
         {
-            edgeScrollCoroutine = StartCoroutine(EdgeScroll(draggablePosition));
+            StopCoroutine(edgeScrollCoroutine);
+            edgeScrollCoroutine = null;
         }
     }
 
-    private IEnumerator EdgeScroll(Vector3 draggablePosition)
+    private IEnumerator EdgeScroll()
     {
         while (isDraggingSprite)
         {
-            HandleEdgeScrolling(draggablePosition);
+            HandleEdgeScrolling(currentDraggable.transform.position);
             yield return null;
         }
-        edgeScrollCoroutine = null;
     }
 }
