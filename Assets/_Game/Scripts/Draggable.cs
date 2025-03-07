@@ -4,26 +4,34 @@ using UnityEngine;
 
 public abstract class Draggable : MonoBehaviour
 {
+    #region Properties
     public Vector3 InitialScale { get; private set; }
     public abstract DraggableType Type { get; }
+    #endregion
 
-    protected SpriteRenderer spriteRenderer;
-    private bool isBeingDragged = false;
-    private Coroutine gravityCoroutine;
-    private Coroutine scaleCoroutine;
-
+    #region Serialized Fields
     [SerializeField] private float fallSpeed = 5f; // Initial speed at which the object falls
     [SerializeField] private float fallAcceleration = 2f; // Acceleration of the fall
     [SerializeField] private float scaleSpeed = 8f; // Speed at which the object scales
     [SerializeField] public LayerMask validPlacementLayerMask; // Layer mask for valid placement
     [SerializeField] private Vector2 overlapSize = new Vector2(1f, 1f); // Size of the overlap area for placement check
     [SerializeField] private Vector2 overlapOffset = Vector2.zero; // Offset of the overlap area for placement check
+    #endregion
 
+    #region Public Properties
     public Vector2 OverlapSize => overlapSize; // Public property to access overlap size
     public Vector2 OverlapOffset => overlapOffset; // Public property to access overlap offset
+    #endregion
 
+    #region Private Fields
+    protected SpriteRenderer spriteRenderer;
+    private bool isBeingDragged = false;
+    private Coroutine gravityCoroutine;
+    private Coroutine scaleCoroutine;
     private Vector3 originalPosition; // To store the original position of the draggable
+    #endregion
 
+    #region Unity Methods
     private void Start()
     {
         InitialScale = transform.localScale; // Save the initial scale
@@ -39,7 +47,9 @@ public abstract class Draggable : MonoBehaviour
         Gizmos.color = Color.red;
         Gizmos.DrawWireCube((Vector2)transform.position + overlapOffset, overlapSize);
     }
+    #endregion
 
+    #region Public Methods
     public void AdjustOrderInLayer()
     {
         SpriteRenderer renderer = GetComponent<SpriteRenderer>();
@@ -69,6 +79,20 @@ public abstract class Draggable : MonoBehaviour
         }
     }
 
+    public virtual void StopFallingAndReturnToNormalScale(Collider2D collider = null)
+    {
+        StopGravity();
+        if (scaleCoroutine != null)
+        {
+            StopCoroutine(scaleCoroutine);
+            scaleCoroutine = null;
+        }
+
+        scaleCoroutine = StartCoroutine(SmoothScale(transform, InitialScale, scaleSpeed));
+    }
+    #endregion
+
+    #region Private Methods
     private void StartGravity()
     {
         if (gravityCoroutine == null)
@@ -124,7 +148,7 @@ public abstract class Draggable : MonoBehaviour
         }
     }
 
-    public IEnumerator SmoothScale(Transform target, Vector3 targetScale, float speed)
+    private IEnumerator SmoothScale(Transform target, Vector3 targetScale, float speed)
     {
         while (!Mathf.Approximately(target.localScale.x, targetScale.x) ||
                !Mathf.Approximately(target.localScale.y, targetScale.y))
@@ -134,18 +158,7 @@ public abstract class Draggable : MonoBehaviour
         }
         target.localScale = targetScale;
     }
-
-    public virtual void StopFallingAndReturnToNormalScale(Collider2D collider = null)
-    {
-        StopGravity();
-        if (scaleCoroutine != null)
-        {
-            StopCoroutine(scaleCoroutine);
-            scaleCoroutine = null;
-        }
-
-        scaleCoroutine = StartCoroutine(SmoothScale(transform, InitialScale, scaleSpeed));
-    }
+    #endregion
 }
 
 public enum DraggableType

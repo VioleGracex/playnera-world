@@ -5,8 +5,23 @@ using UnityEngine;
 
 public class DragAndDropManager : MonoBehaviour
 {
+    #region Singleton
     public static DragAndDropManager Instance;
 
+    private void Awake()
+    {
+        if (Instance == null)
+        {
+            Instance = this;
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
+    }
+    #endregion
+
+    #region Variables
     private Camera cam;
     private CameraController camController;
     private bool isDragging = false;
@@ -20,19 +35,9 @@ public class DragAndDropManager : MonoBehaviour
     [SerializeField] private LayerMask draggableLayer;
     private int originalSortingOrder;
     private Coroutine scaleCoroutine;
+    #endregion
 
-    private void Awake()
-    {
-        if (Instance == null)
-        {
-            Instance = this;
-        }
-        else
-        {
-            Destroy(gameObject);
-        }
-    }
-
+    #region Unity Methods
     private void Start()
     {
         cam = Camera.main;
@@ -41,52 +46,80 @@ public class DragAndDropManager : MonoBehaviour
 
     private void Update()
     {
+        HandleTouchInput();
+        HandleScaling();
+    }
+    #endregion
+
+    #region Drag and Drop Logic
+    private void HandleTouchInput()
+    {
         if (Input.touchCount == 1)
         {
             Touch touch = Input.GetTouch(0);
             Vector3 touchPosition = cam.ScreenToWorldPoint(touch.position);
             touchPosition.z = 0;
 
-            if (touch.phase == TouchPhase.Began)
+            switch (touch.phase)
             {
-                RaycastHit2D hit = Physics2D.Raycast(touchPosition, Vector2.zero, Mathf.Infinity, draggableLayer);
-                if (hit.collider != null)
-                {
-                    currentDraggable = hit.collider.GetComponent<Draggable>();
-                    if (currentDraggable != null)
-                    {
-                        StartDragging(currentDraggable, touchPosition);
-                    }
-                }
-            }
-            else if (touch.phase == TouchPhase.Moved && isDragging)
-            {
-                Vector3 newPosition = touchPosition + offset;
-                currentDraggable.transform.position = newPosition;
-
-                // Inform camera controller to check position
-                camController.HandleEdgeScrolling(currentDraggable.transform.position);
-
-                // Check if hovering over a collider that the draggable can interact with
-                if (currentDraggable.Type == DraggableType.Person)
-                {
-                    CheckHoverPerson();
-                }
-                else if (currentDraggable.Type == DraggableType.Item)
-                {
-                    if(currentDraggable.GetComponent<DraggableItem>().canBeHeld)
-                    {
-                       CheckHoverItem();     
-                    }
-                }
-            }
-            else if (touch.phase == TouchPhase.Ended && isDragging)
-            {
-                StopDragging();
+                case TouchPhase.Began:
+                    HandleTouchBegan(touchPosition);
+                    break;
+                case TouchPhase.Moved:
+                    HandleTouchMoved(touchPosition);
+                    break;
+                case TouchPhase.Ended:
+                    HandleTouchEnded();
+                    break;
             }
         }
+    }
 
-        // Scale object back to original size smoothly
+    private void HandleTouchBegan(Vector3 touchPosition)
+    {
+        RaycastHit2D hit = Physics2D.Raycast(touchPosition, Vector2.zero, Mathf.Infinity, draggableLayer);
+        if (hit.collider != null)
+        {
+            currentDraggable = hit.collider.GetComponent<Draggable>();
+            if (currentDraggable != null)
+            {
+                StartDragging(currentDraggable, touchPosition);
+            }
+        }
+    }
+
+    private void HandleTouchMoved(Vector3 touchPosition)
+    {
+        if (isDragging)
+        {
+            Vector3 newPosition = touchPosition + offset;
+            currentDraggable.transform.position = newPosition;
+
+            // Inform camera controller to check position
+            camController.HandleEdgeScrolling(currentDraggable.transform.position);
+
+            // Check if hovering over a collider that the draggable can interact with
+            if (currentDraggable.Type == DraggableType.Person)
+            {
+                CheckHoverPerson();
+            }
+            else if (currentDraggable.Type == DraggableType.Item && currentDraggable.GetComponent<DraggableItem>().canBeHeld)
+            {
+                CheckHoverItem();
+            }
+        }
+    }
+
+    private void HandleTouchEnded()
+    {
+        if (isDragging)
+        {
+            StopDragging();
+        }
+    }
+
+    private void HandleScaling()
+    {
         if (currentDraggable != null && !isDragging && currentDraggable.transform.localScale != originalScale)
         {
             currentDraggable.transform.localScale = Vector3.Lerp(currentDraggable.transform.localScale, originalScale, Time.deltaTime * scaleSpeed);
@@ -110,23 +143,13 @@ public class DragAndDropManager : MonoBehaviour
         {
             originalSortingOrder = spriteRenderer.sortingOrder;
             spriteRenderer.sortingOrder = 1000; // Set a high sorting order
-            if(currentDraggable.Type == DraggableType.Person)
+            if (currentDraggable.Type == DraggableType.Person)
             {
-                if(((DraggablePerson)currentDraggable).HeldItem != null)
-                {
-                    ((DraggablePerson)currentDraggable).HeldItem.GetComponent<SpriteRenderer>().sortingOrder = 1001;
-                } 
+                SetHeldItemSortingOrder(((DraggablePerson)currentDraggable));
             }
             else if (currentDraggable.Type == DraggableType.Item)
             {
-                if(currentDraggable.transform.parent != null)
-                {
-                     if(currentDraggable.transform.parent.GetComponent<DraggablePerson>() != null)
-                     {
-                        DraggablePerson itemParent = currentDraggable.transform.parent.GetComponent<DraggablePerson>();
-                        itemParent.ReleaseItem();
-                     }
-                }
+                ReleaseParentItem();
             }
         }
 
@@ -172,20 +195,18 @@ public class DragAndDropManager : MonoBehaviour
         // Sort colliders by their layer priority
         var sortedColliders = colliders.OrderBy(c => CharacterPoseInfo.Instance.layerPriority[LayerMask.LayerToName(c.gameObject.layer)]).ToArray();
 
-        foreach (var collider in sortedColliders)
+        if (sortedColliders.Length > 0)
         {
+            Collider2D collider = sortedColliders[0];
             if (collider.OverlapPoint(currentDraggable.transform.position))
             {
                 string layerName = LayerMask.LayerToName(collider.gameObject.layer);
-                if (currentDraggable.Type == DraggableType.Person)
-                {
-                    /* ((DraggablePerson)currentDraggable).ChangePoseByLayer(layerName);
-                    return true; */
-                }
-                else if (currentDraggable.Type == DraggableType.Item && collider.GetComponent<DraggablePerson>() != null)
+
+                if (currentDraggable.Type == DraggableType.Item && collider.GetComponent<DraggablePerson>() != null)
                 {
                     var draggablePerson = collider.GetComponent<DraggablePerson>();
-                    if (draggablePerson.HeldItem == null && ((DraggableItem)currentDraggable).canBeHeld && CharacterPoseInfo.Instance.IsPoseAllowedToHoldItem(draggablePerson.currentPose))
+                    if (draggablePerson.HeldItem == null && ((DraggableItem)currentDraggable).canBeHeld && 
+                        CharacterPoseInfo.Instance.IsPoseAllowedToHoldItem(draggablePerson.currentPose))
                     {
                         draggablePerson.HoldItem((DraggableItem)currentDraggable);
                     }
@@ -195,7 +216,9 @@ public class DragAndDropManager : MonoBehaviour
         }
         return false;
     }
+    #endregion
 
+    #region Hover Checks
     private void CheckHoverPerson()
     {
         LayerMask targetLayerMask = currentDraggable.validPlacementLayerMask;
@@ -205,29 +228,14 @@ public class DragAndDropManager : MonoBehaviour
 
         var sortedColliders = colliders.OrderBy(c => CharacterPoseInfo.Instance.layerPriority[LayerMask.LayerToName(c.gameObject.layer)]).ToArray();
 
-        foreach (var collider in sortedColliders)
+        if (sortedColliders.Length > 0)
         {
+            Collider2D collider = sortedColliders[0];
             string layerName = LayerMask.LayerToName(collider.gameObject.layer);
             ((DraggablePerson)currentDraggable).ChangePoseByLayer(layerName);
-            if (layerName == "SitFriendly" || layerName == "SleepFriendly")
-            {
-                // Return scale to normal when hovering over a sit or sleep place
-                if (scaleCoroutine != null)
-                    StopCoroutine(scaleCoroutine);
-                scaleCoroutine = StartCoroutine(SmoothScale(currentDraggable.transform, originalScale, scaleSpeed));
-            }
-            else
-            {
-                // Scale bigger when hovering over a non-sit or non-sleep place
-                if (scaleCoroutine != null)
-                    StopCoroutine(scaleCoroutine);
-                scaleCoroutine = StartCoroutine(SmoothScale(currentDraggable.transform, targetScale, scaleSpeed));
-            }
-            break;
-
+            HandleScaleForHover(layerName);
         }
-
-        if ( colliders.Length == 0 && currentDraggable.transform.localScale != targetScale)
+        else if (currentDraggable.transform.localScale != targetScale)
         {
             // Scale bigger when hovering over a non-valid area
             if (scaleCoroutine != null)
@@ -265,7 +273,9 @@ public class DragAndDropManager : MonoBehaviour
             lastHoveredPerson = null;
         }
     }
+    #endregion
 
+    #region Utilities
     private IEnumerator SmoothScale(Transform target, Vector3 targetScale, float speed)
     {
         while (!Mathf.Approximately(target.localScale.x, targetScale.x) ||
@@ -288,4 +298,43 @@ public class DragAndDropManager : MonoBehaviour
             Gizmos.DrawWireCube(position, size);
         }
     }
+
+    private void SetHeldItemSortingOrder(DraggablePerson draggablePerson)
+    {
+        if (draggablePerson.HeldItem != null)
+        {
+            draggablePerson.HeldItem.GetComponent<SpriteRenderer>().sortingOrder = 1001;
+        }
+    }
+
+    private void ReleaseParentItem()
+    {
+        if (currentDraggable.transform.parent != null)
+        {
+            if (currentDraggable.transform.parent.GetComponent<DraggablePerson>() != null)
+            {
+                DraggablePerson itemParent = currentDraggable.transform.parent.GetComponent<DraggablePerson>();
+                itemParent.ReleaseItem();
+            }
+        }
+    }
+
+    private void HandleScaleForHover(string layerName)
+    {
+        if (layerName == "SitFriendly" || layerName == "SleepFriendly")
+        {
+            // Return scale to normal when hovering over a sit or sleep place
+            if (scaleCoroutine != null)
+                StopCoroutine(scaleCoroutine);
+            scaleCoroutine = StartCoroutine(SmoothScale(currentDraggable.transform, originalScale, scaleSpeed));
+        }
+        else
+        {
+            // Scale bigger when hovering over a non-sit or non-sleep place
+            if (scaleCoroutine != null)
+                StopCoroutine(scaleCoroutine);
+            scaleCoroutine = StartCoroutine(SmoothScale(currentDraggable.transform, targetScale, scaleSpeed));
+        }
+    }
+    #endregion
 }

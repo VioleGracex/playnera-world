@@ -5,6 +5,7 @@ public class DraggablePerson : Draggable
 {
     public override DraggableType Type => DraggableType.Person;
 
+    #region Serialized Fields
     [SerializeField]
     private List<PoseSprite> poseSpritesList;
 
@@ -16,11 +17,15 @@ public class DraggablePerson : Draggable
 
     [SerializeField]
     private Transform handLocation; // Transform to represent the hand location
+    #endregion
 
+    #region Private Fields
     private Dictionary<string, Sprite> poseSprites;
     public DraggableItem HeldItem { get; private set; } // Property to reference the held item
     public string currentPose = "standing"; // Variable to track the current pose
+    #endregion
 
+    #region Unity Methods
     private void Awake()
     {
         spriteRenderer = GetComponent<SpriteRenderer>();
@@ -36,6 +41,18 @@ public class DraggablePerson : Draggable
         }
     }
 
+    private void OnDrawGizmos()
+    {
+        // Draw a gizmo to represent the hand location
+        if (handLocation != null)
+        {
+            Gizmos.color = Color.red;
+            Gizmos.DrawSphere(handLocation.position, 0.1f);
+        }
+    }
+    #endregion
+
+    #region Pose Management
     public void ChangePoseByLayer(string layerName)
     {
         string newPose = CharacterPoseInfo.Instance.GetPoseFromLayer(layerName);
@@ -89,6 +106,7 @@ public class DraggablePerson : Draggable
             spriteRenderer.sprite = newSprite;
         }
     }
+
     public void ValidateHoveredOnPose(DraggableItem item)
     {
         // Automatically switch to holding pose on hover
@@ -127,7 +145,9 @@ public class DraggablePerson : Draggable
             HeldItem.transform.position = handLocation.position;
         }
     }
+    #endregion
 
+    #region Item Management
     public void HoldItem(DraggableItem item)
     {
         HeldItem = item;
@@ -146,7 +166,9 @@ public class DraggablePerson : Draggable
             ValidatePose(); // Reset the pose after releasing the item
         }
     }
+    #endregion
 
+    #region Overridden Methods
     public override void StopFallingAndReturnToNormalScale(Collider2D collider = null)
     {
         base.StopFallingAndReturnToNormalScale(collider);
@@ -169,14 +191,5 @@ public class DraggablePerson : Draggable
             }
         }
     }
-
-    private void OnDrawGizmos()
-    {
-        // Draw a gizmo to represent the hand location
-        if (handLocation != null)
-        {
-            Gizmos.color = Color.red;
-            Gizmos.DrawSphere(handLocation.position, 0.1f);
-        }
-    }
+    #endregion
 }
