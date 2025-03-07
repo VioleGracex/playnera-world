@@ -1,45 +1,60 @@
 using UnityEngine;
+using System.Collections;
 
 public class CameraController : MonoBehaviour
 {
-    public Transform background; // Assign the background GameObject in Unity
+    public Transform background;
     private Camera cam;
     public Vector2 minBounds, maxBounds;
-    private Vector3 lastTouchPosition;
     private bool isDragging = false;
     private bool isDraggingSprite = false;
-    [SerializeField] private float edgeScrollSpeed = 5f; // Speed of camera scrolling when dragging near the edge
-    [SerializeField] private float edgeThreshold = 50f; // Threshold in pixels for edge scrolling
+    private Draggable currentDraggable;
+    private Vector3 lastTouchPosition;
+    [SerializeField] private float edgeScrollSpeed = 1f; 
+    [SerializeField] private float edgeThreshold = 50f; // Edge threshold in pixels
+    [SerializeField] private float minSwipeDistance = 0.5f; // Minimum swipe distance to move the camera
+    [SerializeField] private float cameraSmoothing = 0.1f; // Smoothing factor for camera movement
+    [SerializeField] private float swipeScrollSpeed = 1f; // Speed factor for camera movement when swiping
+    private Coroutine edgeScrollCoroutine;
 
     void Start()
     {
-        cam = Camera.main; // Directly get the Main Camera
+        cam = Camera.main;
         AdjustCameraSize();
         CalculateBounds();
     }
 
     void Update()
     {
-        if (Input.touchCount == 1) // Only one finger touch
+        if (!isDraggingSprite && Input.touchCount == 1)
         {
             Touch touch = Input.GetTouch(0);
             Vector3 touchPosition = cam.ScreenToWorldPoint(touch.position);
+            touchPosition.z = 0;
 
             if (touch.phase == TouchPhase.Began)
             {
                 lastTouchPosition = touchPosition;
                 isDragging = true;
             }
-            else if (touch.phase == TouchPhase.Moved && isDragging && !isDraggingSprite)
+            else if (touch.phase == TouchPhase.Moved && isDragging)
             {
                 Vector3 difference = lastTouchPosition - touchPosition;
-                MoveCamera(difference);
-                lastTouchPosition = touchPosition;
+                if (difference.magnitude >= minSwipeDistance)
+                {
+                    MoveCamera(difference * swipeScrollSpeed);
+                    lastTouchPosition = touchPosition; // Update lastTouchPosition
+                }
             }
             else if (touch.phase == TouchPhase.Ended)
             {
                 isDragging = false;
             }
+        }
+
+        if (isDraggingSprite && currentDraggable != null)
+        {
+            HandleEdgeScrolling(currentDraggable.transform.position);
         }
     }
 
@@ -51,7 +66,7 @@ public class CameraController : MonoBehaviour
         if (bgRenderer == null) return;
 
         float bgHeight = bgRenderer.bounds.size.y;
-        cam.orthographicSize = bgHeight / 2f; // Adjust camera size based on background height
+        cam.orthographicSize = bgHeight / 2f;
     }
 
     void CalculateBounds()
@@ -74,10 +89,12 @@ public class CameraController : MonoBehaviour
 
     public void MoveCamera(Vector3 difference)
     {
-        Vector3 newPos = cam.transform.position + difference;
-        newPos.x = Mathf.Clamp(newPos.x, minBounds.x, maxBounds.x);
-        newPos.y = Mathf.Clamp(newPos.y, minBounds.y, maxBounds.y);
-        cam.transform.position = newPos;
+        Vector3 targetPosition = cam.transform.position + difference;
+        targetPosition.x = Mathf.Clamp(targetPosition.x, minBounds.x, maxBounds.x);
+        targetPosition.y = Mathf.Clamp(targetPosition.y, minBounds.y, maxBounds.y);
+
+        // Smoothly move the camera to the target position
+        cam.transform.position = Vector3.Lerp(cam.transform.position, targetPosition, cameraSmoothing);
     }
 
     public void HandleEdgeScrolling(Vector3 draggablePosition)
@@ -103,16 +120,39 @@ public class CameraController : MonoBehaviour
             cameraMovement.y = edgeScrollSpeed * Time.deltaTime;
         }
 
-        MoveCamera(cameraMovement);
+        if (cameraMovement != Vector3.zero)
+        {
+            MoveCamera(cameraMovement);
+        }
     }
 
-    public void StartSpriteDrag()
+    public void StartSpriteDrag(Draggable draggable)
     {
         isDraggingSprite = true;
+        currentDraggable = draggable;
+        if (edgeScrollCoroutine == null)
+        {
+            edgeScrollCoroutine = StartCoroutine(EdgeScroll());
+        }
     }
 
     public void EndSpriteDrag()
     {
         isDraggingSprite = false;
+        currentDraggable = null;
+        if (edgeScrollCoroutine != null)
+        {
+            StopCoroutine(edgeScrollCoroutine);
+            edgeScrollCoroutine = null;
+        }
+    }
+
+    private IEnumerator EdgeScroll()
+    {
+        while (isDraggingSprite)
+        {
+            HandleEdgeScrolling(currentDraggable.transform.position);
+            yield return null;
+        }
     }
 }

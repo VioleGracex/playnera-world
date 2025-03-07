@@ -1471,9 +1471,11 @@ MonoBehaviour:
   background: {fileID: 779328538}
   minBounds: {x: 0, y: 0}
   maxBounds: {x: 0, y: 0}
-  edgeScrollSpeed: 3
+  edgeScrollSpeed: 10
   edgeThreshold: 250
-  minSwipeDistance: 0.6
+  minSwipeDistance: 0.7
+  cameraSmoothing: 0.1
+  swipeScrollSpeed: 5
 --- !u!1 &601159550
 GameObject:
   m_ObjectHideFlags: 0
@@ -1656,7 +1658,7 @@ Transform:
   m_GameObject: {fileID: 601159550}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 18.87, y: 1.58, z: 0}
+  m_LocalPosition: {x: 18.75, y: 0.9, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -2986,7 +2988,7 @@ GameObject:
   - component: {fileID: 1023456282}
   - component: {fileID: 1023456281}
   m_Layer: 10
-  m_Name: table_02
+  m_Name: bed
   m_TagString: PlacementZone
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -3053,10 +3055,10 @@ PolygonCollider2D:
   m_AutoTiling: 0
   m_Points:
     m_Paths:
-    - - {x: -1.3705028, y: 0.47504944}
+    - - {x: -1.3350897, y: -0.4185604}
       - {x: -1.2024436, y: -1.9003143}
       - {x: 0.074074656, y: -1.7903183}
-      - {x: -0.101107806, y: 0.5321038}
+      - {x: -0.05684165, y: -0.44274282}
   m_UseDelaunayMesh: 0
 --- !u!212 &1023456282
 SpriteRenderer:
