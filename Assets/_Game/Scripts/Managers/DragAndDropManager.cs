@@ -15,21 +15,11 @@ public class DragAndDropManager : MonoBehaviour
     private Vector3 originalPosition;
     private Vector3 targetScale;
     private Vector3 originalScale;
+    private DraggablePerson lastHoveredPerson = null;
     [SerializeField] private float scaleSpeed = 8f;
-    [SerializeField] private LayerMask itemFriendlyLayer; // Layer mask for item-friendly places
-    [SerializeField] private LayerMask personFriendlyLayer; // Layer mask for person-friendly places
     [SerializeField] private LayerMask draggableLayer;
     private int originalSortingOrder;
     private Coroutine scaleCoroutine;
-
-    private Dictionary<string, int> layerPriority = new Dictionary<string, int>
-    {
-        { "SitFriendly", 1 },
-        { "SleepFriendly", 2 },
-        { "PersonFriendly", 3 },
-        { "ItemFriendly", 4 },
-        { "Floor", 5 }
-    };
 
     private void Awake()
     {
@@ -80,7 +70,14 @@ public class DragAndDropManager : MonoBehaviour
                 // Check if hovering over a collider that the draggable can interact with
                 if (currentDraggable.Type == DraggableType.Person)
                 {
-                    CheckHoverPose();
+                    CheckHoverPerson();
+                }
+                else if (currentDraggable.Type == DraggableType.Item)
+                {
+                    if(currentDraggable.GetComponent<DraggableItem>().canBeHeld)
+                    {
+                       CheckHoverItem();     
+                    }
                 }
             }
             else if (touch.phase == TouchPhase.Ended && isDragging)
@@ -113,6 +110,24 @@ public class DragAndDropManager : MonoBehaviour
         {
             originalSortingOrder = spriteRenderer.sortingOrder;
             spriteRenderer.sortingOrder = 1000; // Set a high sorting order
+            if(currentDraggable.Type == DraggableType.Person)
+            {
+                if(((DraggablePerson)currentDraggable).HeldItem != null)
+                {
+                    ((DraggablePerson)currentDraggable).HeldItem.GetComponent<SpriteRenderer>().sortingOrder = 1001;
+                } 
+            }
+            else if (currentDraggable.Type == DraggableType.Item)
+            {
+                if(currentDraggable.transform.parent != null)
+                {
+                     if(currentDraggable.transform.parent.GetComponent<DraggablePerson>() != null)
+                     {
+                        DraggablePerson itemParent = currentDraggable.transform.parent.GetComponent<DraggablePerson>();
+                        itemParent.ReleaseItem();
+                     }
+                }
+            }
         }
 
         camController.StartSpriteDrag(draggable); // Inform CameraController
@@ -149,13 +164,13 @@ public class DragAndDropManager : MonoBehaviour
 
     private bool CheckPlacement()
     {
-        LayerMask targetLayerMask = currentDraggable.Type == DraggableType.Person ? personFriendlyLayer : itemFriendlyLayer;
+        LayerMask targetLayerMask = currentDraggable.validPlacementLayerMask;
         Vector2 overlapPosition = (Vector2)currentDraggable.transform.position + Vector2.Scale(currentDraggable.OverlapOffset, currentDraggable.transform.localScale);
         Vector2 overlapSize = Vector2.Scale(currentDraggable.OverlapSize, currentDraggable.transform.localScale);
         Collider2D[] colliders = Physics2D.OverlapBoxAll(overlapPosition, overlapSize, 0f, targetLayerMask);
 
         // Sort colliders by their layer priority
-        var sortedColliders = colliders.OrderBy(c => layerPriority[LayerMask.LayerToName(c.gameObject.layer)]).ToArray();
+        var sortedColliders = colliders.OrderBy(c => CharacterPoseInfo.Instance.layerPriority[LayerMask.LayerToName(c.gameObject.layer)]).ToArray();
 
         foreach (var collider in sortedColliders)
         {
@@ -164,7 +179,16 @@ public class DragAndDropManager : MonoBehaviour
                 string layerName = LayerMask.LayerToName(collider.gameObject.layer);
                 if (currentDraggable.Type == DraggableType.Person)
                 {
-                    ((DraggablePerson)currentDraggable).ChangePose(layerName);
+                    /* ((DraggablePerson)currentDraggable).ChangePoseByLayer(layerName);
+                    return true; */
+                }
+                else if (currentDraggable.Type == DraggableType.Item && collider.GetComponent<DraggablePerson>() != null)
+                {
+                    var draggablePerson = collider.GetComponent<DraggablePerson>();
+                    if (draggablePerson.HeldItem == null && ((DraggableItem)currentDraggable).canBeHeld && CharacterPoseInfo.Instance.IsPoseAllowedToHoldItem(draggablePerson.currentPose))
+                    {
+                        draggablePerson.HoldItem((DraggableItem)currentDraggable);
+                    }
                 }
                 return true;
             }
@@ -172,50 +196,73 @@ public class DragAndDropManager : MonoBehaviour
         return false;
     }
 
-    private void CheckHoverPose()
+    private void CheckHoverPerson()
     {
-        LayerMask targetLayerMask = currentDraggable.Type == DraggableType.Person ? personFriendlyLayer : itemFriendlyLayer;
+        LayerMask targetLayerMask = currentDraggable.validPlacementLayerMask;
         Vector2 overlapPosition = (Vector2)currentDraggable.transform.position + Vector2.Scale(currentDraggable.OverlapOffset, currentDraggable.transform.localScale);
         Vector2 overlapSize = Vector2.Scale(currentDraggable.OverlapSize, currentDraggable.transform.localScale);
         Collider2D[] colliders = Physics2D.OverlapBoxAll(overlapPosition, overlapSize, 0f, targetLayerMask);
 
-        bool isHoveringOverPlacementZone = false;
+        var sortedColliders = colliders.OrderBy(c => CharacterPoseInfo.Instance.layerPriority[LayerMask.LayerToName(c.gameObject.layer)]).ToArray();
 
-        foreach (var collider in colliders)
+        foreach (var collider in sortedColliders)
         {
-            if (collider.OverlapPoint(currentDraggable.transform.position))
+            string layerName = LayerMask.LayerToName(collider.gameObject.layer);
+            ((DraggablePerson)currentDraggable).ChangePoseByLayer(layerName);
+            if (layerName == "SitFriendly" || layerName == "SleepFriendly")
             {
-                if (currentDraggable.Type == DraggableType.Person)
-                {
-                    isHoveringOverPlacementZone = true;
-                    string layerName = LayerMask.LayerToName(collider.gameObject.layer);
-                    ((DraggablePerson)currentDraggable).ChangePose(layerName);
-                    if (layerName == "SitFriendly" || layerName == "SleepFriendly")
-                    {
-                        // Return scale to normal when hovering over a sit or sleep place
-                        if (scaleCoroutine != null)
-                            StopCoroutine(scaleCoroutine);
-                        scaleCoroutine = StartCoroutine(SmoothScale(currentDraggable.transform, originalScale, scaleSpeed));
-                    }
-                    else
-                    {
-                        // Scale bigger when hovering over a non-sit or non-sleep place
-                        if (scaleCoroutine != null)
-                            StopCoroutine(scaleCoroutine);
-                        scaleCoroutine = StartCoroutine(SmoothScale(currentDraggable.transform, targetScale, scaleSpeed));
-                    }
-                    break;
-                }
+                // Return scale to normal when hovering over a sit or sleep place
+                if (scaleCoroutine != null)
+                    StopCoroutine(scaleCoroutine);
+                scaleCoroutine = StartCoroutine(SmoothScale(currentDraggable.transform, originalScale, scaleSpeed));
             }
+            else
+            {
+                // Scale bigger when hovering over a non-sit or non-sleep place
+                if (scaleCoroutine != null)
+                    StopCoroutine(scaleCoroutine);
+                scaleCoroutine = StartCoroutine(SmoothScale(currentDraggable.transform, targetScale, scaleSpeed));
+            }
+            break;
+
         }
 
-        if (!isHoveringOverPlacementZone && currentDraggable.transform.localScale != targetScale)
+        if ( colliders.Length == 0 && currentDraggable.transform.localScale != targetScale)
         {
             // Scale bigger when hovering over a non-valid area
             if (scaleCoroutine != null)
                 StopCoroutine(scaleCoroutine);
             scaleCoroutine = StartCoroutine(SmoothScale(currentDraggable.transform, targetScale, scaleSpeed));
-            ((DraggablePerson)currentDraggable).ChangePose("standing");
+            ((DraggablePerson)currentDraggable).ChangePoseTo("standing");
+        }
+    }
+
+    private void CheckHoverItem()
+    {
+        Vector2 overlapPosition = (Vector2)currentDraggable.transform.position + Vector2.Scale(currentDraggable.OverlapOffset, currentDraggable.transform.localScale);
+        Vector2 overlapSize = Vector2.Scale(currentDraggable.OverlapSize, currentDraggable.transform.localScale);
+        Collider2D[] colliders = Physics2D.OverlapBoxAll(overlapPosition, overlapSize, 0f, currentDraggable.validPlacementLayerMask);
+
+        var personCollider = colliders.FirstOrDefault(c => LayerMask.LayerToName(c.gameObject.layer) == "Person");
+
+        if (personCollider != null)
+        {
+            var draggablePerson = personCollider.GetComponent<DraggablePerson>();
+            if (draggablePerson != null && draggablePerson.HeldItem == null && CharacterPoseInfo.Instance.IsPoseAllowedToHoldItem(draggablePerson.currentPose))
+            {
+                draggablePerson.ValidateHoveredOnPose((DraggableItem)currentDraggable);
+
+                if (lastHoveredPerson != null && lastHoveredPerson != draggablePerson)
+                {
+                    lastHoveredPerson.ValidatePose();
+                }
+                lastHoveredPerson = draggablePerson;
+            }
+        }
+        else if (lastHoveredPerson != null && lastHoveredPerson.HeldItem == null)
+        {
+            lastHoveredPerson.ValidatePose();
+            lastHoveredPerson = null;
         }
     }
 

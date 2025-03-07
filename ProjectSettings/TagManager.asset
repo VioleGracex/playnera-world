@@ -6,6 +6,7 @@ TagManager:
   tags:
   - PlacementZone
   - SitFriendly
+  - Missile
   layers:
   - Default
   - TransparentFX
@@ -18,9 +19,9 @@ TagManager:
   - PersonFriendly
   - SitFriendly
   - SleepFriendly
-  - 
-  - 
-  - 
+  - Person
+  - Item
+  - Particle
   - 
   - 
   - 

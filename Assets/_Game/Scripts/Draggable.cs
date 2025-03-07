@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Linq;
 using UnityEngine;
 
 public abstract class Draggable : MonoBehaviour
@@ -14,7 +15,7 @@ public abstract class Draggable : MonoBehaviour
     [SerializeField] private float fallSpeed = 5f; // Initial speed at which the object falls
     [SerializeField] private float fallAcceleration = 2f; // Acceleration of the fall
     [SerializeField] private float scaleSpeed = 8f; // Speed at which the object scales
-    [SerializeField] private LayerMask validPlacementLayerMask; // Layer mask for valid placement
+    [SerializeField] public LayerMask validPlacementLayerMask; // Layer mask for valid placement
     [SerializeField] private Vector2 overlapSize = new Vector2(1f, 1f); // Size of the overlap area for placement check
     [SerializeField] private Vector2 overlapOffset = Vector2.zero; // Offset of the overlap area for placement check
 
@@ -29,7 +30,7 @@ public abstract class Draggable : MonoBehaviour
         spriteRenderer = GetComponent<SpriteRenderer>();
         AdjustOrderInLayer();
         originalPosition = transform.position; // Save the original position
-        gravityCoroutine = StartCoroutine(ApplyGravity());
+        StartGravity();
     }
 
     private void OnDrawGizmos()
@@ -51,11 +52,7 @@ public abstract class Draggable : MonoBehaviour
     public void StartDragging()
     {
         isBeingDragged = true;
-        if (gravityCoroutine != null)
-        {
-            StopCoroutine(gravityCoroutine);
-            gravityCoroutine = null;
-        }
+        StopGravity();
         if (scaleCoroutine != null)
         {
             StopCoroutine(scaleCoroutine);
@@ -68,7 +65,24 @@ public abstract class Draggable : MonoBehaviour
         isBeingDragged = false;
         if (!validPlacement)
         {
+            StartGravity();
+        }
+    }
+
+    private void StartGravity()
+    {
+        if (gravityCoroutine == null)
+        {
             gravityCoroutine = StartCoroutine(ApplyGravity());
+        }
+    }
+
+    private void StopGravity()
+    {
+        if (gravityCoroutine != null)
+        {
+            StopCoroutine(gravityCoroutine);
+            gravityCoroutine = null;
         }
     }
 
@@ -89,9 +103,10 @@ public abstract class Draggable : MonoBehaviour
 
             // Check for collision with valid placement layer mask
             Collider2D[] colliders = Physics2D.OverlapBoxAll((Vector2)transform.position + overlapOffset, overlapSize, 0f, validPlacementLayerMask);
-            if (colliders.Length > 0)
+            var sortedColliders = colliders.OrderBy(c => CharacterPoseInfo.Instance.layerPriority[LayerMask.LayerToName(c.gameObject.layer)]).ToArray();
+            if (sortedColliders.Length > 0)
             {
-                StopFallingAndReturnToNormalScale(colliders[0]);
+                StopFallingAndReturnToNormalScale(sortedColliders[0]);
                 AdjustOrderInLayer();
                 yield break;
             }
@@ -122,11 +137,7 @@ public abstract class Draggable : MonoBehaviour
 
     public virtual void StopFallingAndReturnToNormalScale(Collider2D collider = null)
     {
-        if (gravityCoroutine != null)
-        {
-            StopCoroutine(gravityCoroutine);
-            gravityCoroutine = null;
-        }
+        StopGravity();
         if (scaleCoroutine != null)
         {
             StopCoroutine(scaleCoroutine);
