@@ -7,7 +7,8 @@ public class ButtonScene : MonoBehaviour
     private int sceneIndex;
 
     private Button button;
-
+    [SerializeField] private bool addListener = true;
+ 
     private void Awake()
     {
         button = GetComponent<Button>();
@@ -27,5 +28,10 @@ public class ButtonScene : MonoBehaviour
         {
             Debug.LogError("PersistentSceneManager instance is not found in the scene.");
         }
+    }
+
+    public void QuitGame()
+    {
+        PersistentSceneManager.Instance.QuitGame();
     }
 }

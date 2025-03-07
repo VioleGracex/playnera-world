@@ -7437,10 +7437,10 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 1869286861}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 1}
-  m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 147.9, y: -105}
-  m_SizeDelta: {x: 184.03943, y: 193}
+  m_AnchorMin: {x: 0.036000002, y: 0.93532723}
+  m_AnchorMax: {x: 0.036000002, y: 0.93532723}
+  m_AnchoredPosition: {x: 92.40015, y: -96.5}
+  m_SizeDelta: {x: 184, y: 193}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &2016037015
 MonoBehaviour:
@@ -7537,6 +7537,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   sceneIndex: 0
+  addListener: 1
 --- !u!1 &2058816209
 GameObject:
   m_ObjectHideFlags: 0
